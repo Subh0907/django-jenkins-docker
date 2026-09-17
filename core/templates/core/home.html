@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Django deployment example</title>
+</head>
+<body>
+  <main>
+    <h1>Django deployment example</h1>
+    <p>The application is running.</p>
+    <h2>Notes</h2>
+    <ul>
+      {% for note in notes %}
+        <li><strong>{{ note.title }}</strong>: {{ note.body }}</li>
+      {% empty %}
+        <li>No notes yet. Add one through <a href="/admin/">Django Admin</a>.</li>
+      {% endfor %}
+    </ul>
+  </main>
+</body>
+</html>

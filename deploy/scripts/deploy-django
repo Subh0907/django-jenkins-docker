@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if [[ $# -ne 3 ]]; then
+    echo "Usage: deploy-django IMAGE_REPOSITORY IMAGE_TAG COMPOSE_FILE" >&2
+    exit 64
+fi
+
+IMAGE_REPOSITORY="$1"
+IMAGE_TAG="$2"
+COMPOSE_CANDIDATE="$3"
+
+APP_ROOT="/opt/django-app"
+ENV_FILE="${APP_ROOT}/.env"
+COMPOSE_FILE="${APP_ROOT}/compose.yaml"
+PREVIOUS_ENV="${APP_ROOT}/.env.previous"
+PREVIOUS_COMPOSE="${APP_ROOT}/compose.yaml.previous"
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "Missing ${ENV_FILE}" >&2
+    exit 1
+fi
+
+if [[ ! -f "${COMPOSE_CANDIDATE}" ]]; then
+    echo "Missing candidate Compose file: ${COMPOSE_CANDIDATE}" >&2
+    exit 1
+fi
+
+case "${IMAGE_REPOSITORY}" in
+    *[!a-zA-Z0-9._/:@-]*) echo "Invalid image repository" >&2; exit 64 ;;
+esac
+
+case "${IMAGE_TAG}" in
+    *[!a-zA-Z0-9._-]*) echo "Invalid image tag" >&2; exit 64 ;;
+esac
+
+umask 077
+cp --preserve=mode,ownership "${ENV_FILE}" "${PREVIOUS_ENV}"
+if [[ -f "${COMPOSE_FILE}" ]]; then
+    cp --preserve=mode,ownership "${COMPOSE_FILE}" "${PREVIOUS_COMPOSE}"
+fi
+
+set_env_value() {
+    local key="$1"
+    local value="$2"
+    local temporary
+    temporary="$(mktemp "${APP_ROOT}/.env.XXXXXX")"
+    awk -v key="${key}" -v value="${value}" '
+        BEGIN { found = 0 }
+        $0 ~ "^" key "=" { print key "=" value; found = 1; next }
+        { print }
+        END { if (!found) print key "=" value }
+    ' "${ENV_FILE}" > "${temporary}"
+    chown root:docker "${temporary}"
+    chmod 0640 "${temporary}"
+    mv "${temporary}" "${ENV_FILE}"
+}
+
+rollback_image() {
+    echo "Deployment failed; restoring the previous image configuration." >&2
+    cp --preserve=mode,ownership "${PREVIOUS_ENV}" "${ENV_FILE}"
+    if [[ -f "${PREVIOUS_COMPOSE}" ]]; then
+        cp --preserve=mode,ownership "${PREVIOUS_COMPOSE}" "${COMPOSE_FILE}"
+    fi
+    docker compose --project-directory "${APP_ROOT}" \
+        --env-file "${ENV_FILE}" \
+        -f "${COMPOSE_FILE}" up -d --remove-orphans || true
+}
+
+trap rollback_image ERR
+
+install -o root -g docker -m 0640 "${COMPOSE_CANDIDATE}" "${COMPOSE_FILE}"
+rm -f "${COMPOSE_CANDIDATE}"
+
+set_env_value APP_IMAGE "${IMAGE_REPOSITORY}"
+set_env_value APP_VERSION "${IMAGE_TAG}"
+
+set -a
+# This root-owned file contains the database values needed by readiness checks.
+source "${ENV_FILE}"
+set +a
+
+COMPOSE=(
+    docker compose
+    --project-directory "${APP_ROOT}"
+    --env-file "${ENV_FILE}"
+    -f "${COMPOSE_FILE}"
+)
+
+"${COMPOSE[@]}" config --quiet
+"${COMPOSE[@]}" pull web
+"${COMPOSE[@]}" up -d db
+
+for attempt in $(seq 1 30); do
+    if "${COMPOSE[@]}" exec -T db pg_isready \
+        -U "${POSTGRES_USER}" \
+        -d "${POSTGRES_DB}" >/dev/null 2>&1; then
+        break
+    fi
+    if [[ "${attempt}" -eq 30 ]]; then
+        echo "PostgreSQL did not become ready" >&2
+        exit 1
+    fi
+    sleep 2
+done
+
+/usr/local/bin/backup-django-db
+
+"${COMPOSE[@]}" run --rm web python manage.py migrate --noinput
+"${COMPOSE[@]}" up -d --remove-orphans
+
+for attempt in $(seq 1 30); do
+    if curl --fail --silent http://127.0.0.1:8000/health/ >/dev/null; then
+        trap - ERR
+        echo "Deployment completed: ${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+        exit 0
+    fi
+    sleep 2
+done
+
+echo "Application health check failed" >&2
+exit 1

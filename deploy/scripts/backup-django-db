@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+APP_ROOT="/opt/django-app"
+BACKUP_ROOT="/var/backups/django-app"
+ENV_FILE="${APP_ROOT}/.env"
+COMPOSE_FILE="${APP_ROOT}/compose.yaml"
+TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+BACKUP_FILE="${BACKUP_ROOT}/django-app-${TIMESTAMP}.dump"
+
+umask 077
+mkdir -p "${BACKUP_ROOT}"
+
+set -a
+# The file is root-owned and must contain shell-compatible KEY=value entries.
+source "${ENV_FILE}"
+set +a
+
+docker compose \
+    --project-directory "${APP_ROOT}" \
+    --env-file "${ENV_FILE}" \
+    -f "${COMPOSE_FILE}" \
+    exec -T \
+    -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+    db pg_dump \
+    --username="${POSTGRES_USER}" \
+    --dbname="${POSTGRES_DB}" \
+    --format=custom \
+    --no-owner \
+    --no-privileges > "${BACKUP_FILE}"
+
+test -s "${BACKUP_FILE}"
+find "${BACKUP_ROOT}" -type f -name 'django-app-*.dump' -mtime +14 -delete
+echo "Created ${BACKUP_FILE}"
+
