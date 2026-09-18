@@ -16,6 +16,12 @@ pipeline {
     }
 
     stages {
+        stage('Pre-Clean Workspace') {
+            steps {
+                // Wipes workspace before pulling new code
+                cleanWs()
+            }
+        }
         stage('Checkout') {
             steps {
                 checkout scm
