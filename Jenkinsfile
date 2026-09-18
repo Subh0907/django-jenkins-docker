@@ -32,7 +32,7 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker build \
+                    sudo docker build \
                         --target test \
                         --tag "${APP_NAME}-test:${IMAGE_TAG}" \
                         .
@@ -44,11 +44,11 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                    sudo docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
                         python manage.py test
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                    sudo docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
                         python manage.py check
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                    sudo docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
                         python manage.py makemigrations --check --dry-run
                 '''
             }
@@ -58,7 +58,7 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker build \
+                    sudo docker build \
                         --target runtime \
                         --tag "${APP_IMAGE}:${IMAGE_TAG}" \
                         .
@@ -79,12 +79,12 @@ pipeline {
                     sh '''
                         set +x
                         printf '%s' "$REGISTRY_TOKEN" | \
-                            docker login "$REGISTRY_HOST" \
+                            sudo docker login "$REGISTRY_HOST" \
                                 --username "$REGISTRY_USERNAME" \
                                 --password-stdin
                         set -x
-                        docker push "${APP_IMAGE}:${IMAGE_TAG}"
-                        docker logout "$REGISTRY_HOST"
+                        sudo docker push "${APP_IMAGE}:${IMAGE_TAG}"
+                        sudo docker logout "$REGISTRY_HOST"
                     '''
                 }
             }
@@ -115,8 +115,8 @@ pipeline {
     post {
         always {
             sh '''
-                docker image rm "${APP_NAME}-test:${IMAGE_TAG}" 2>/dev/null || true
-                docker image rm "${APP_IMAGE}:${IMAGE_TAG}" 2>/dev/null || true
+                sudo docker image rm "${APP_NAME}-test:${IMAGE_TAG}" 2>/dev/null || true
+                sudo docker image rm "${APP_IMAGE}:${IMAGE_TAG}" 2>/dev/null || true
             '''
             cleanWs()
         }
