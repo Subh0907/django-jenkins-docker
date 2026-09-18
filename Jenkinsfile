@@ -9,9 +9,9 @@ pipeline {
 
     environment {
         APP_NAME = 'django-app'
-        APP_IMAGE = 'ghcr.io/REPLACE_ORGANIZATION/django-app'
-        REGISTRY_HOST = 'ghcr.io'
-        DEPLOY_HOST = 'REPLACE_APP_SERVER_IP'
+        APP_IMAGE = 'docker.io/subbu098/django'
+        REGISTRY_HOST = 'docker.io'
+        DEPLOY_HOST = '13.221.253.21'
         DEPLOY_USER = 'deploy'
     }
 
