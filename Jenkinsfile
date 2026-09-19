@@ -74,9 +74,6 @@ pipeline {
         }
 
         stage('Push image') {
-            when {
-                branch 'main'
-            }
             steps {
                     sh '''
                         set +x
