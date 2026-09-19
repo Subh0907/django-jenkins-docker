@@ -8,6 +8,7 @@ pipeline {
     }
 
     environment {
+        MY_CREDS = credentials('container-registry')
         APP_NAME = 'django-app'
         APP_IMAGE = 'docker.io/subbu098/django'
         REGISTRY_HOST = 'docker.io'
@@ -77,17 +78,13 @@ pipeline {
                 branch 'main'
             }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'container-registry',
-                    usernameVariable: 'REGISTRY_USERNAME',
-                    passwordVariable: 'REGISTRY_TOKEN'
-                )]) {
+                {
                     sh '''
                         set +x
                         printf '%s' "$REGISTRY_TOKEN" | \
                             docker login "$REGISTRY_HOST" \
-                                --username "$REGISTRY_USERNAME" \
-                                --password-stdin
+                                --username "$MY_CREDS_USR" \
+                                --password "$MY_CREDS_PSW" \
                         set -x
                         docker push "${APP_IMAGE}:${IMAGE_TAG}"
                         docker logout "$REGISTRY_HOST"
