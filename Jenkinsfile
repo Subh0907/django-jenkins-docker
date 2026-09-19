@@ -78,7 +78,6 @@ pipeline {
                 branch 'main'
             }
             steps {
-                {
                     sh '''
                         set +x
                         printf '%s' "$REGISTRY_TOKEN" | \
@@ -89,7 +88,6 @@ pipeline {
                         docker push "${APP_IMAGE}:${IMAGE_TAG}"
                         docker logout "$REGISTRY_HOST"
                     '''
-                }
             }
         }
 
