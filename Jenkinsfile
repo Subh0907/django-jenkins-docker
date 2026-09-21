@@ -1,5 +1,6 @@
 pipeline {
     agent any 
+
     options {
         timestamps()
         disableConcurrentBuilds()
@@ -17,12 +18,6 @@ pipeline {
     }
 
     stages {
-        stage('Pre-Clean Workspace') {
-            steps {
-                // Wipes workspace before pulling new code
-                cleanWs()
-            }
-        }
         stage('Checkout') {
             steps {
                 checkout scm
@@ -51,12 +46,9 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
-                        python manage.py test
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
-                        python manage.py check
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
-                        python manage.py makemigrations --check --dry-run
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py test
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py check
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py makemigrations --check --dry-run
                 '''
             }
         }
@@ -75,16 +67,13 @@ pipeline {
 
         stage('Push image') {
             steps {
-                    sh '''
-                        set +x
-                        printf '%s' "$REGISTRY_TOKEN" | \
-                            docker login "$REGISTRY_HOST" \
-                                --username "$MY_CREDS_USR" \
-                                --password "$MY_CREDS_PSW" \
-                        set -x
-                        docker push "${APP_IMAGE}:${IMAGE_TAG}"
-                        docker logout "$REGISTRY_HOST"
-                    '''
+                sh '''
+                    set +x
+                    echo "$MY_CREDS_PSW" | docker login "$REGISTRY_HOST" -u "$MY_CREDS_USR" --password-stdin
+                    set -x
+                    docker push "${APP_IMAGE}:${IMAGE_TAG}"
+                    docker logout "$REGISTRY_HOST"
+                '''
             }
         }
 
@@ -126,4 +115,3 @@ pipeline {
         }
     }
 }
-
