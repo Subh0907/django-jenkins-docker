@@ -15,6 +15,7 @@ pipeline {
         REGISTRY_HOST = 'docker.io'
         DEPLOY_HOST = '13.221.253.21'
         DEPLOY_USER = 'deploy'
+        DOCKER_BUILDKIT = '1'
     }
 
     stages {
