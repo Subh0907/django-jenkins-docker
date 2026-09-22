@@ -1,5 +1,5 @@
 pipeline {
-    agent any 
+    agent { label 'docker' }
 
     options {
         timestamps()
@@ -46,9 +46,12 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py test
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py check
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py makemigrations --check --dry-run
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py test
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py check
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py makemigrations --check --dry-run
                 '''
             }
         }
