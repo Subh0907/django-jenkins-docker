@@ -18,7 +18,6 @@ RUN pip install --upgrade pip \
 COPY . .
 
 FROM base AS test
-RUN python manage.py collectstatic --noinput
 CMD ["python", "manage.py", "test"]
 
 FROM base AS runtime
