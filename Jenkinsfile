@@ -1,5 +1,5 @@
 pipeline {
-    agent any 
+    agent { label 'docker' }
 
     options {
         timestamps()
@@ -9,13 +9,11 @@ pipeline {
     }
 
     environment {
-        MY_CREDS = credentials('container-registry')
         APP_NAME = 'django-app'
-        APP_IMAGE = 'docker.io/subbu098/django'
-        REGISTRY_HOST = 'docker.io'
-        DEPLOY_HOST = '13.221.253.21'
+        APP_IMAGE = 'ghcr.io/REPLACE_ORGANIZATION/django-app'
+        REGISTRY_HOST = 'ghcr.io'
+        DEPLOY_HOST = 'REPLACE_APP_SERVER_IP'
         DEPLOY_USER = 'deploy'
-        DOCKER_BUILDKIT = '1'
     }
 
     stages {
@@ -47,9 +45,12 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py test
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py check
-                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" python manage.py makemigrations --check --dry-run
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py test
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py check
+                    docker run --rm "${APP_NAME}-test:${IMAGE_TAG}" \
+                        python manage.py makemigrations --check --dry-run
                 '''
             }
         }
@@ -67,14 +68,26 @@ pipeline {
         }
 
         stage('Push image') {
+            when {
+                branch 'main'
+            }
             steps {
-                sh '''
-                    set +x
-                    echo "$MY_CREDS_PSW" | docker login "$REGISTRY_HOST" -u "$MY_CREDS_USR" --password-stdin
-                    set -x
-                    docker push "${APP_IMAGE}:${IMAGE_TAG}"
-                    docker logout "$REGISTRY_HOST"
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'container-registry',
+                    usernameVariable: 'REGISTRY_USERNAME',
+                    passwordVariable: 'REGISTRY_TOKEN'
+                )]) {
+                    sh '''
+                        set +x
+                        printf '%s' "$REGISTRY_TOKEN" | \
+                            docker login "$REGISTRY_HOST" \
+                                --username "$REGISTRY_USERNAME" \
+                                --password-stdin
+                        set -x
+                        docker push "${APP_IMAGE}:${IMAGE_TAG}"
+                        docker logout "$REGISTRY_HOST"
+                    '''
+                }
             }
         }
 
